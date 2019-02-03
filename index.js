@@ -1,36 +1,27 @@
-// Checks API example
-// See: https://developer.github.com/v3/checks/ to learn more
+const checkPrTitle = require('./check-title.js')
+
 module.exports = app => {
-  app.on(['check_suite.requested', 'check_run.rerequested'], check)
+  app.on(['pull_request.opened', 'pull_request.edited', 'pull_request.synchronize'], check)
 
-    app.on('issues.opened', async context => {
-        const params = context.issue({ body: 'Hello World!' })
+  // https://developer.github.com/v3/repos/statuses/#create-a-status
+  // error, failure, pending, or success
+  async function check (context) {
+    const { title, body } = context.payload.pull_request
 
-        // Post a comment on the issue
-        return context.github.issues.createComment(params)
-    })
+    const titleErrors = checkPrTitle(title)
+    var state = 'success'
+    var description = 'PR title looks good!'
+    if (titleErrors.length > 0) {
+      state = 'failure'
+      description = titleErrors.join('; ')
+    }
     
-    async function check (context) {
-    // Do stuff
-    const { head_branch, head_sha } = context.payload.check_suite
-    // Probot API note: context.repo() => {username: 'hiimbex', repo: 'testing-things'}
-    return context.github.checks.create(context.repo({
-      name: 'My app!',
-      head_branch,
-      head_sha,
-      status: 'completed',
-      conclusion: 'success',
-      completed_at: new Date(),
-      output: {
-        title: 'Probot check!',
-        summary: 'The check has passed!'
-      }
+    context.github.repos.createStatus(context.repo({
+      sha: context.payload.pull_request.head.sha,
+      state: state,
+      description: description,
+      context: 'PR-TITLE',
     }))
+
   }
-
-  // For more information on building apps:
-  // https://probot.github.io/docs/
-
-  // To get your app running against GitHub, see:
-  // https://probot.github.io/docs/development/
 }
